@@ -1,0 +1,14 @@
+[user]
+  name = kensei
+  email = kensei.kitahara@gmail.com
+[core]
+  autocrlf = input
+  editor = vim
+[alias]
+  st = status
+  co = checkout
+  br = branch
+  cm = commit
+  pr = pull --rebase origin
+  po = push origin
+  fe = fetch

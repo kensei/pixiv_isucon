@@ -1,0 +1,13 @@
+.bash_history
+.bundle/
+.composer/
+.gem/
+.local/
+.mysql_history
+.npm/
+.ssh/
+.viminfo
+.xbuild/
+backup/
+gocode/
+repos/
