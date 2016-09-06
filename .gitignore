@@ -1,10 +1,12 @@
 .bash_history
 .bundle/
+.cache/
 .composer/
 .gem/
 .local/
 .mysql_history
 .npm/
+.pyenv/
 .ssh/
 .viminfo
 .xbuild/

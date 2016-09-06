@@ -1,4 +1,11 @@
+echo profile
+
+export LC_ALL=en_US.UTF-8
+
 alias ll='ls -alFh'
 alias rm='rm -i'
 alias cp='cp -i'
 alias mv='mv -i'
+export PYENV_ROOT="$HOME/.pyenv"
+export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
