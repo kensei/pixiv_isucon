@@ -14,3 +14,5 @@ export PATH=/home/isucon/.local/go/bin:$PATH
 export GOROOT=/home/isucon/.local/go
 export GOPATH=/home/isucon/gocode
 export PATH=/home/isucon/.local/scala/bin:$PATH
+
+source $HOME/dotfiles/profile
