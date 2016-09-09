@@ -17,4 +17,5 @@ __pycache__
 backup/
 gocode/
 LOCAL/
+private_isu/webapp/public/image/
 repos/

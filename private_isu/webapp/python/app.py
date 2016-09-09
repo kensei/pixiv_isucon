@@ -3,7 +3,7 @@ import os
 import re
 import pathlib
 import subprocess
-import tempfile
+# import tempfile
 
 import flask
 import MySQLdb.cursors
@@ -359,6 +359,7 @@ def post_index():
         flask.flash("投稿できる画像形式はjpgとpngとgifだけです")
         return flask.redirect('/')
 
+    """
     with tempfile.TemporaryFile() as tempf:
         file.save(tempf)
         tempf.flush()
@@ -369,14 +370,28 @@ def post_index():
 
         tempf.seek(0)
         imgdata = tempf.read()
+    """
 
     query = 'INSERT INTO `posts` (`user_id`, `mime`, `imgdata`, `body`) VALUES (%s,%s,%s,%s)'
     cursor = db().cursor()
-    cursor.execute(query, (me['id'], mime, imgdata, flask.request.form.get('body')))
+    # cursor.execute(query, (me['id'], mime, imgdata, flask.request.form.get('body')))
+    cursor.execute(query, (me['id'], mime, 'test', flask.request.form.get('body')))
     pid = cursor.lastrowid
+
+    file_name = image_url({"id": pid, "mime": mime})
+    file_path = str(static_path) + file_name
+    if (os.path.exists(file_path)):
+        os.remove(file_path)
+    file.save(file_path)
+
+    if os.path.getsize(file_path) > UPLOAD_LIMIT:
+        flask.flash("ファイルサイズが大きすぎます")
+        return flask.redirect('/')
+
     return flask.redirect("/posts/%d" % pid)
 
 
+"""
 @app.route('/image/<id>.<ext>')
 def get_image(id, ext):
     if not id:
@@ -396,6 +411,7 @@ def get_image(id, ext):
         return flask.Response(post['imgdata'], mimetype=mime)
 
     flask.abort(404)
+"""
 
 
 @app.route('/comment', methods=['POST'])
