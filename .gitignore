@@ -3,6 +3,7 @@
 .python_history
 .python-version
 .screenrc
+__pycache__
 .viminfo
 .bundle/
 .cache/
