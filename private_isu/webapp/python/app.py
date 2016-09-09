@@ -405,8 +405,8 @@ def get_image(id, ext):
     post = cursor.fetchone()
 
     mime = post['mime']
-    if (ext == 'jpg' and mime == "image/jpeg"
-            or ext == 'png' and mime == "image/png"
+    if (ext == 'jpg' and mime == "image/jpeg"\
+            or ext == 'png' and mime == "image/png"\
             or ext == 'gif' and mime == "image/gif"):
         return flask.Response(post['imgdata'], mimetype=mime)
 
