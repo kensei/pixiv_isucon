@@ -9,7 +9,6 @@ import flask
 import jinja2
 import MySQLdb.cursors
 from pymemcache.client.base import Client as MemcacheClient
-import mysql.connector
 
 import pymc_session
 
@@ -37,11 +36,10 @@ def config():
     return _config
 
 
-# _db = None
+_db = None
 
 
 def db():
-    """
     global _db
     if _db is None:
         conf = config()["db"].copy()
@@ -50,8 +48,6 @@ def db():
         conf['autocommit'] = True
         _db = MySQLdb.connect(**conf)
     return _db
-    """
-    return flask.g.cnx_pool.get_connection()
 
 
 def db_initialize():
@@ -161,15 +157,6 @@ app.session_interface = pymc_session.SessionInterface(memcache())
 
 @app.before_first_request
 def before_first_request():
-    conf = config()["db"].copy()
-    flask.g.cnx_pool = mysql.connector.pooling.MySQLConnectionPool(pool_name="isucon",
-                                                                   pool_size=10,
-                                                                   autocommit=True,
-                                                                   user=conf['user'],
-                                                                   host=conf['host'],
-                                                                   port=conf['port'],
-                                                                   database=conf['db'],
-                                                                   charset='utf8mb4')
 
 
 @app.template_global()
