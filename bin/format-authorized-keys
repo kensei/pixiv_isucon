@@ -1,0 +1,6 @@
+#!/bin/bash
+
+KEYS=~/.ssh/authorized_keys
+
+cp $KEYS{,.bak}
+sed -e '/./s/^\(command=".*" \)\?\(ssh-[rd]sa [^ ]* \([^@]*\)\(@.*\)\?\)$/command="SSH_USER=\3 eval ${SSH_ORIGINAL_COMMAND:-\/bin\/bash -l}" \2/' $KEYS.bak | tee $KEYS

@@ -16,3 +16,17 @@ export GOPATH=/home/isucon/gocode
 export PATH=/home/isucon/.local/scala/bin:$PATH
 
 source $HOME/dotfiles/profile
+
+#screen ssh-agent
+if [ ! -z "${SSH_USER}" ]; then
+    agent="$HOME/.ssh/.ssh-agent-$SSH_USER"
+    if [ -S "$agent" ]; then
+        export SSH_AUTH_SOCK=$agent
+    elif [ ! -S "$SSH_AUTH_SOCK" ]; then
+        export SSH_AUTH_SOCK=$agent
+    elif [ ! -L "$SSH_AUTH_SOCK" ]; then
+        test ! -L "$SSH_AUTH_SOCK" -a -S "$SSH_AUTH_SOCK" && ln -snf "$SSH_AUTH_SOCK" $agent
+        #ln -snf "$SSH_AUTH_SOCK" $agent
+        export SSH_AUTH_SOCK=$agent
+    fi
+fi
