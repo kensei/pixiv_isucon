@@ -6,19 +6,22 @@ import subprocess
 import tempfile
 
 import flask
-import jinja2
 import MySQLdb.cursors
 import logging
 from pymemcache.client.base import Client as MemcacheClient
+# http://flask.pocoo.org/snippets/28/
+from jinja2 import evalcontextfilter, Markup, escape
 
 import pymc_session
 
 
-UPLOAD_LIMIT = 10 * 1024 * 1024 # 10mb
+# 10mb
+UPLOAD_LIMIT = 10 * 1024 * 1024
 POSTS_PER_PAGE = 20
 
 
 _config = None
+
 
 def config():
     global _config
@@ -96,7 +99,7 @@ def digest(src: str):
     out = subprocess.check_output(["openssl", "dgst", "-sha512"], input=src.encode('ascii'))
     out = out.decode('ascii')
     # opensslのバージョンによっては (stdin)= というのがつくので取る
-    out = out[out.find('=')+1:]
+    out = out[out.find('=') + 1:]
     return out.strip()
 
 
@@ -152,7 +155,7 @@ def make_posts(results, all_comments=False):
 
 static_path = pathlib.Path(__file__).resolve().parent.parent / 'public'
 app = flask.Flask(__name__, static_folder=str(static_path), static_url_path='')
-#app.debug = True
+# app.debug = True
 app.session_interface = pymc_session.SessionInterface(memcache())
 app.logger.setLevel(logging.DEBUG)
 handler = logging.StreamHandler()
@@ -172,31 +175,33 @@ def image_url(post):
 
     return "/image/%s%s" % (post['id'], ext)
 
-# http://flask.pocoo.org/snippets/28/
-from jinja2 import evalcontextfilter, Markup, escape
 
 _paragraph_re = re.compile(r'(?:\r\n|\r|\n){2,}')
+
 
 @app.template_filter()
 @evalcontextfilter
 def nl2br(eval_ctx, value):
-    result = u'\n\n'.join(u'<p>%s</p>' % p.replace('\n', '<br>\n') \
-        for p in _paragraph_re.split(escape(value)))
+    result = u'\n\n'.join(u'<p>%s</p>' % p.replace('\n', '<br>\n') for p in _paragraph_re.split(escape(value)))
     if eval_ctx.autoescape:
         result = Markup(result)
 
+
 # endpoints
+
 
 @app.route('/initialize')
 def get_initialize():
     db_initialize()
     return ''
 
+
 @app.route('/login')
 def get_login():
     if get_session_user():
         return flask.redirect('/')
     return flask.render_template("login.html", me=None)
+
 
 @app.route('/login', methods=['POST'])
 def post_login():
@@ -212,11 +217,13 @@ def post_login():
     flask.flash("アカウント名かパスワードが間違っています")
     return flask.redirect('/login')
 
+
 @app.route('/register')
 def get_register():
     if get_session_user():
         return flask.redirect('/')
     return flask.render_template("register.html", me=None)
+
 
 @app.route('/register', methods=['POST'])
 def post_register():
@@ -243,10 +250,12 @@ def post_register():
     flask.session['csrf_token'] = os.urandom(8).hex()
     return flask.redirect('/')
 
+
 @app.route('/logout')
 def get_logout():
     flask.session.clear()
     return flask.redirect('/')
+
 
 @app.route('/')
 def get_index():
@@ -257,6 +266,7 @@ def get_index():
     posts = make_posts(cursor.fetchall())
 
     return flask.render_template("index.html", posts=posts, me=me)
+
 
 @app.route('/@<account_name>')
 def get_user_list(account_name):
@@ -290,6 +300,7 @@ def get_user_list(account_name):
                                  posts=posts, user=user, post_count=post_count,
                                  comment_count=comment_count, me=me)
 
+
 def _parse_iso8601(s):
     # http://bugs.python.org/issue15873
     # Ignore timezone
@@ -297,6 +308,7 @@ def _parse_iso8601(s):
     if not m:
         raise ValueError("Invlaid iso8601 format: %r" % (s,))
     return datetime.datetime(*map(int, m.groups()))
+
 
 @app.route('/posts')
 def get_posts():
@@ -323,6 +335,7 @@ def get_posts_id(id):
 
     me = get_session_user()
     return flask.render_template("post.html", post=posts[0], me=me)
+
 
 @app.route('/', methods=['POST'])
 def post_index():
@@ -361,6 +374,7 @@ def post_index():
     pid = cursor.lastrowid
     return flask.redirect("/posts/%d" % pid)
 
+
 @app.route('/image/<id>.<ext>')
 def get_image(id, ext):
     if not id:
@@ -380,6 +394,7 @@ def get_image(id, ext):
         return flask.Response(post['imgdata'], mimetype=mime)
 
     flask.abort(404)
+
 
 @app.route('/comment', methods=['POST'])
 def post_comment():
@@ -401,6 +416,7 @@ def post_comment():
 
     return flask.redirect("/posts/%d" % post_id)
 
+
 @app.route('/admin/banned')
 def get_banned():
     me = get_session_user()
@@ -415,6 +431,7 @@ def get_banned():
     users = cursor.fetchall()
 
     flask.render_template("banned.html", users=users, me=me)
+
 
 @app.route('/admin/banned', methods=['POST'])
 def post_banned():
