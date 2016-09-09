@@ -18,6 +18,7 @@ import pymc_session
 # 10mb
 UPLOAD_LIMIT = 10 * 1024 * 1024
 POSTS_PER_PAGE = 20
+POSTS_LIMIT = 50
 
 
 _config = None
@@ -262,7 +263,7 @@ def get_index():
     me = get_session_user()
 
     cursor = db().cursor()
-    cursor.execute('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `created_at` DESC')
+    cursor.execute('SELECT `id`, `user_id`, `body`, `created_at`, `mime` FROM `posts` ORDER BY `created_at` DESC LIMIT %s', (POSTS_LIMIT,))
     posts = make_posts(cursor.fetchall())
 
     return flask.render_template("index.html", posts=posts, me=me)
@@ -278,8 +279,8 @@ def get_user_list(account_name):
     if not user:
         flask.abort(404)  # raises exception
 
-    cursor.execute("SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = %s ORDER BY `created_at` DESC",
-                   (user['id'],))
+    cursor.execute("SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = %s ORDER BY `created_at` DESC LIMIT %s",
+                   (user['id'], POSTS_LIMIT))
     posts = make_posts(cursor.fetchall())
 
     cursor.execute('SELECT COUNT(*) AS count FROM `comments` WHERE `user_id` = %s', (user['id'],))
@@ -318,9 +319,9 @@ def get_posts():
     max_created_at = flask.request.args['max_created_at'] or None
     if max_created_at:
         max_created_at = _parse_iso8601(max_created_at)
-        cursor.execute('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `created_at` <= %s ORDER BY `created_at` DESC', (max_created_at,))
+        cursor.execute('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `created_at` <= %s ORDER BY `created_at` DESC LIMIT %s', (max_created_at, POSTS_LIMIT))
     else:
-        cursor.execute('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE ORDER BY `created_at` DESC')
+        cursor.execute('SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE ORDER BY `created_at` DESC LIMIT %s', (POSTS_LIMIT,))
     results = cursor.fetchall()
     posts = make_posts(results)
     return flask.render_template("posts.html", posts=posts)
