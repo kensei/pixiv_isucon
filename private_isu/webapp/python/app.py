@@ -8,6 +8,7 @@ import tempfile
 import flask
 import jinja2
 import MySQLdb.cursors
+import logging
 from pymemcache.client.base import Client as MemcacheClient
 
 import pymc_session
@@ -153,10 +154,9 @@ static_path = pathlib.Path(__file__).resolve().parent.parent / 'public'
 app = flask.Flask(__name__, static_folder=str(static_path), static_url_path='')
 #app.debug = True
 app.session_interface = pymc_session.SessionInterface(memcache())
-
-
-@app.before_first_request
-def before_first_request():
+app.logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+app.logger.addHandler(handler)
 
 
 @app.template_global()
