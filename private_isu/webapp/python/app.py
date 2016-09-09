@@ -289,10 +289,12 @@ def get_user_list(account_name):
     post_ids = [p['id'] for p in cursor]
     post_count = len(post_ids)
 
+    """
     commented_count = 0
     if post_count > 0:
         cursor.execute("SELECT COUNT(*) AS count FROM `comments` WHERE `post_id` IN %s", (post_ids,))
         commented_count = cursor.fetchone()['count']
+    """
 
     me = get_session_user()
 
