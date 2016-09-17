@@ -18,7 +18,9 @@ import pymc_session
 # 10mb
 UPLOAD_LIMIT = 10 * 1024 * 1024
 POSTS_PER_PAGE = 20
-POSTS_LIMIT = 50
+POSTS_LIMIT = 25
+ACCOUNT_ID_KEY_PREFIX = 'ACCOUNT_ID'
+ACCOUNT_NAME_KEY_PREFIX = 'ACCOUNT_NAME'
 
 
 _config = None
@@ -68,6 +70,15 @@ def db_initialize():
         cur.execute(q)
 
 
+def memcache_initialize():
+    cursor = db().cursor()
+    cursor.execute('SELECT id, account_name, passhash, authority, del_flg FROM `users`')
+    users = cursor.fetchall()
+    for user in users:
+        set_account_by_id(user['id'], user['account_name'], 0, user['authority'])
+        set_account_by_name(user['account_name'], user['id'], user['passhash'])
+
+
 _mcclient = None
 
 
@@ -115,9 +126,11 @@ def calculate_passhash(account_name: str, password: str):
 def get_session_user():
     user = flask.session.get('user')
     if user:
-        cur = db().cursor()
-        cur.execute("SELECT * FROM `users` WHERE `id` = %s", (user['id'],))
-        return cur.fetchone()
+        # cur = db().cursor()
+        # cur.execute("SELECT id, authority FROM `users` WHERE `id` = %s", (user['id'],))
+        # return cur.fetchone()
+        account_name, del_flg, authority = get_account_by_id(user['id'])
+        return {'id':user['id'], 'account_name':account_name, 'del_flg':del_flg, 'authority':authority}
     return None
 
 
@@ -125,9 +138,9 @@ def make_posts(results, all_comments=False):
     posts = []
     cursor = db().cursor()
     for post in results:
-        cursor.execute("SELECT COUNT(*) AS `count` FROM `comments` WHERE `post_id` = %s",
-                       (post['id'],))
-        post['comment_count'] = cursor.fetchone()
+        # cursor.execute("SELECT COUNT(*) AS `count` FROM `comments` WHERE `post_id` = %s",
+        #                (post['id'],))
+        # post['comment_count'] = cursor.fetchone()
 
         query = 'SELECT * FROM `comments` WHERE `post_id` = %s ORDER BY `created_at` DESC'
         if not all_comments:
@@ -136,20 +149,72 @@ def make_posts(results, all_comments=False):
         cursor.execute(query, (post['id'],))
         comments = list(cursor)
         for comment in comments:
-            cursor.execute("SELECT * FROM `users` WHERE `id` = %s", (comment['user_id'],))
-            comment['user'] = cursor.fetchone()
+            # cursor.execute("SELECT * FROM `users` WHERE `id` = %s", (comment['user_id'],))
+            # comment['user'] = cursor.fetchone()
+            account_name, _, _ = get_account_by_id(comment['user_id'])
+            comment['user'] = {'account_name', account_name}
         comments.reverse()
         post['comments'] = comments
+        post['comment_count'] = len(comments) if all_comments else 3
 
-        cursor.execute("SELECT * FROM `users` WHERE `id` = %s", (post['user_id'],))
-        post['user'] = cursor.fetchone()
+        # cursor.execute("SELECT * FROM `users` WHERE `id` = %s", (post['user_id'],))
+        # post['user'] = cursor.fetchone()
+        account_name, del_flg, _ = get_account_by_id(post['user_id'])
+        post['user'] = {'account_name' , account_name}
 
-        if not post['user']['del_flg']:
+        # if not post['user']['del_flg']:
+        if del_flg == 0:
             posts.append(post)
 
         if len(posts) >= POSTS_PER_PAGE:
             break
     return posts
+
+
+def get_account_by_id(user_id: int):
+    account_key = '{}_{}'.format(ACCOUNT_ID_KEY_PREFIX, user_id)
+    account = memcache().get(account_key)
+    if account is None:
+        cursor = db().cursor()
+        cursor.execute("SELECT account_name, authority, del_flg FROM `users` WHERE `id` = %s", (user_id,))
+        account_data = cursor.fetchone()
+        if account_data is None:
+            return None, None, None
+        account = set_account_by_id(user_id, account_data['account_name'], account_data['del_flg'], account_data['authority'])
+    else:
+        account = account.decode('utf-8')
+    data = account.split(",")
+    return data[0], int(data[1]), int(data[2])
+
+
+def get_account_by_name(account_name: str):
+    account_key = '{}_{}'.format(ACCOUNT_NAME_KEY_PREFIX, account_name)
+    account = memcache().get(account_key)
+    if account is None:
+        cursor = db().cursor()
+        cursor.execute("SELECT id, passhash FROM `users` WHERE `account_name` = %s", (account_name,))
+        account_data = cursor.fetchone()
+        if account_data is None:
+            return None, None
+        account = set_account_by_name(account_name, account_data['id'], account_data['passhash'])
+    else:
+        account = account.decode('utf-8')
+    data = account.split(",")
+    return int(data[0]), data[1]
+
+
+def set_account_by_id(user_id: int, account_name: str, del_flg: int, authority: int):
+    account_key = '{}_{}'.format(ACCOUNT_ID_KEY_PREFIX, user_id)
+    account = '{},{},{}'.format(account_name, del_flg, authority)
+    memcache().set(account_key, account)
+    return account
+
+
+def set_account_by_name(account_name: str, user_id: int, passhash: str):
+    account_key = '{}_{}'.format(ACCOUNT_NAME_KEY_PREFIX, account_name)
+    account = '{},{}'.format(user_id, passhash)
+    memcache().set(account_key, account)
+    return account
 
 
 # app setup
@@ -194,6 +259,7 @@ def nl2br(eval_ctx, value):
 @app.route('/initialize')
 def get_initialize():
     db_initialize()
+    memcache_initialize()
     return ''
 
 
@@ -238,14 +304,21 @@ def post_register():
         return flask.redirect("/register")
 
     cursor = db().cursor()
-    cursor.execute("SELECT 1 FROM users WHERE `account_name` = %s", (account_name,))
-    user = cursor.fetchone()
-    if user:
+    # cursor.execute("SELECT 1 FROM users WHERE `account_name` = %s", (account_name,))
+    # user = cursor.fetchone()
+    # if user:
+    user_id, _ = get_account_by_name(account_name)
+    if user_id is not None:
         flask.flash("アカウント名がすでに使われています")
         return flask.redirect("/register")
 
     query = 'INSERT INTO `users` (`account_name`, `passhash`) VALUES (%s, %s)'
-    cursor.execute(query, (account_name, calculate_passhash(account_name, password)))
+    # cursor.execute(query, (account_name, calculate_passhash(account_name, password)))
+    passhash = calculate_passhash(account_name, password)
+    cursor.execute(query, (account_name, passhash))
+
+    set_account_by_name(account_name, cursor.lastrowid, passhash)
+    set_account_by_id(cursor.lastrowid, account_name, 0, 1)
 
     flask.session['user'] = {'id': cursor.lastrowid}
     flask.session['csrf_token'] = os.urandom(8).hex()
@@ -273,20 +346,25 @@ def get_index():
 def get_user_list(account_name):
     cursor = db().cursor()
 
-    cursor.execute("SELECT * FROM `users` WHERE `account_name` = %s AND `del_flg` = 0",
-                   (account_name,))
-    user = cursor.fetchone()
-    if not user:
+    # cursor.execute("SELECT id, account_name FROM `users` WHERE `account_name` = %s AND `del_flg` = 0",
+    #                (account_name,))
+    # user = cursor.fetchone()
+    # if not user:
+    user_id, _ = get_account_by_name(account_name)
+    if user_id is None:
         flask.abort(404)  # raises exception
 
     cursor.execute("SELECT `id`, `user_id`, `body`, `mime`, `created_at` FROM `posts` WHERE `user_id` = %s ORDER BY `created_at` DESC LIMIT %s",
-                   (user['id'], POSTS_LIMIT))
+                   (user_id, POSTS_LIMIT))
+    #               (user['id'], POSTS_LIMIT))
     posts = make_posts(cursor.fetchall())
 
-    cursor.execute('SELECT COUNT(*) AS count FROM `comments` WHERE `user_id` = %s', (user['id'],))
+    # cursor.execute('SELECT COUNT(*) AS count FROM `comments` WHERE `user_id` = %s', (user['id'],))
+    cursor.execute('SELECT COUNT(*) AS count FROM `comments` WHERE `user_id` = %s', (user_id,))
     comment_count = cursor.fetchone()['count']
 
-    cursor.execute('SELECT `id` FROM `posts` WHERE `user_id` = %s', (user['id'],))
+    # cursor.execute('SELECT `id` FROM `posts` WHERE `user_id` = %s', (user['id'],))
+    cursor.execute('SELECT `id` FROM `posts` WHERE `user_id` = %s', (user_id,))
     post_ids = [p['id'] for p in cursor]
     post_count = len(post_ids)
 
@@ -299,8 +377,11 @@ def get_user_list(account_name):
 
     me = get_session_user()
 
+    # return flask.render_template("user.html",
+    #                              posts=posts, user=user, post_count=post_count,
+    #                              comment_count=comment_count, me=me)
     return flask.render_template("user.html",
-                                 posts=posts, user=user, post_count=post_count,
+                                 posts=posts, user={'account_name', account_name}, post_count=post_count,
                                  comment_count=comment_count, me=me)
 
 
@@ -446,7 +527,7 @@ def get_banned():
         flask.abort(403)
 
     cursor = db().cursor()
-    cursor.execute('SELECT * FROM `users` WHERE `authority` = 0 AND `del_flg` = 0 ORDER BY `created_at` DESC')
+    cursor.execute('SELECT id, account_name FROM `users` WHERE `authority` = 0 AND `del_flg` = 0 ORDER BY `created_at` DESC')
     users = cursor.fetchall()
 
     flask.render_template("banned.html", users=users, me=me)
@@ -467,6 +548,8 @@ def post_banned():
     cursor = db().cursor()
     query = 'UPDATE `users` SET `del_flg` = %s WHERE `id` = %s'
     for id in flask.request.form.getlist('uid', type=int):
+        account_name, _, _ = get_account_by_id(id)
+        set_account_by_id(id, account_name, 1)
         cursor.execute(query, (1, id))
 
     return flask.redirect('/admin/banned')
